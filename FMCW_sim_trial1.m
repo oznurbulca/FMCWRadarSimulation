@@ -144,4 +144,4 @@ end
 
 %function for obtaining the received signal R_rf(t)
 
-%--now its written above for clarity, will be transformed into function later 
+%--now R-rf(t) is calculated above for clarity, will be transformed into function form later 
