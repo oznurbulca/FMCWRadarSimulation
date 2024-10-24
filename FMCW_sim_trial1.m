@@ -107,6 +107,26 @@ title("Plot of Filtered Signal Y_rf")
 
 %% match filter operation for received signal for each Tp:
 
+Y_filtered=zeros(K,length_pulsePeriod);
+
+for pulse_number=1:K
+
+    %Y_filtered(pulse_number,:)=conv(conj(flip(Srf_t(1:length_pulsePeriod))), R_rf(1+(pulse_number-1)*length_pulsePeriod:length_pulsePeriod*pulse_number));
+    Y_filtered(pulse_number,:)=conj(fft(Srf_t(40002:length_pulsePeriod+40001))).*(fft(R_rf(1+(pulse_number-1)*length_pulsePeriod:length_pulsePeriod*pulse_number)));
+
+end
+
+%autocorrealtion result:
+Srf_autocorr_res=conj(fft(Srf_t(40002:length_pulsePeriod+40001))).*fft(Srf_t(40002:length_pulsePeriod+40001));
+figure;
+title("FT domain results for Matched Filter")
+subplot(2,1,1)
+plot(real(Srf_autocorr_res))
+title("Autocorrelation Result of Srf (for one pulse period)")
+
+subplot(2,1,2)
+plot(real(Y_filtered(4,:)))
+title("Matched Filter output of received signal")
 
 
 
@@ -116,11 +136,21 @@ title("Plot of Filtered Signal Y_rf")
 
 %% detect range from FFT
 
+y_filtered=ifft(Y_filtered(1,:));
+figure;
+subplot(2,1,1)
+plot(real(y_filtered))
+title("Filtered Signal y(n)")
+subplot(2,1,2)
+plot(real(Srf_t(40002:length_pulsePeriod+40001)))
+title("Sent Signal Srf(n) for one period")
 
 
 
 
 %% detect doppler
+
+%% CFAR
 
 
 
