@@ -167,40 +167,33 @@ figure;
 %plot(real(y_filtered2))
 
 
-%% Range detection from FFT
+%% Range detection from FFT (ASK!!!)
 
 %FFT on each row of filtered signal:
 
-frequency_axis=linspace(-fs/2, fs/2, sampleNum_for_singlePulse);
-range_axis = (abs(frequency_axis)*c)/(2*mu); %range vals for frequency 
+% COME BACK AGAIN TO THIS PART!
+frequency_axis=linspace(-fs/2, fs/2, sampleNum_for_singlePulse); %freq axis to find range values
+range_axis = (abs(frequency_axis)*c)/(2*mu); %range vals for given frequency range
+velocity_axis = (-K/2:K/2-1)*lambda/(2*K*Tp); % velocity vals given Sweep time, number of pulses
 
 %FFT accross each row:
 range_FFT=fft(y_filtered,[],2);
+range_doppler_map = fftshift(fft(range_FFT, [], 1), 1); % CHECK AGAIN!
 
-range_doppler_map = fftshift(fft(range_FFT, [], 1), 1);
 
-% Calculate axes
 
-velocity_axis = (-K/2:K/2-1)*lambda/(2*K*Tp);
+% Plot range:
 
-figure('Name', 'Matched Filter Output');
-plot(range_axis, abs(y_filtered(1,:)));
-xlabel('Range (m)');
-ylabel('Amplitude');
-title('Matched Filter Output (First Chirp)');
 
-% Plot Range-Doppler map
-figure('Name', 'Range-Doppler Map');
+
+% Plot Range-Doppler map ??? CHECK THIS AGAIN!
+figure();
 imagesc(range_axis, velocity_axis, 20*log10(abs(range_doppler_map)));
-xlabel('Range (m)');
-ylabel('Velocity (m/s)');
+xlabel('range (m)');
+ylabel('velocity (m/s)');
 title('Range-Doppler Map');
 colorbar;
 axis xy;
-
-
-
-
 
 
 
@@ -213,5 +206,5 @@ axis xy;
 
 
 
-%% CFAR
+%% CFAR ALGORITHM
 
