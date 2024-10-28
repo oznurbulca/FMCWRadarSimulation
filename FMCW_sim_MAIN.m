@@ -176,7 +176,7 @@ end
 
 RangeDoppler_Map=(fft(y_filtered_signal, [], 1)); %FFT along columns for Doppler Freq.  (x axis: Range, y axis: Doppler
 
-RangeDoppler_Map=(fft2(y_filtered_signal,K,sampleNum_for_singlePulse)); %FFT along columns for Doppler Freq. 
+%RangeDoppler_Map=(fft2(y_filtered_signal,K,sampleNum_for_singlePulse)); %FFT along columns for Doppler Freq. 
 
 
 frequency_axis=linspace(-fs/2, fs/2, sampleNum_for_singlePulse);
