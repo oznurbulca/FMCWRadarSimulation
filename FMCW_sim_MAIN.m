@@ -14,7 +14,7 @@ Tp = 20e-6; %single pulse period (seconds) (PRI)
 mu = B / Tp; %frequency sweep rate
 f_c = 62e9;   %carrier frequency (Hz)
 c = physconst('LightSpeed'); %speed of light (m/s)
-fs = 2*B; %sampling frequency (Hz)
+fs = 4*B; %sampling frequency (Hz)
 
 K=64; %number of pulses to transmit in one period 
 SNR_val=10; %dB;
@@ -71,7 +71,7 @@ ylabel("Amplitude")
 %Adjust frequency axis!!!!!
 figure;
 title("Plot of FT of Sent Signal (Srf(f))")
-FT_Srf_n=fft(Srf_n);
+FT_Srf_n=(fft(Srf_n));
 plot(linspace(-B/2,B/2,sampleNum_for_Srf),abs(FT_Srf_n))
 ylabel("Amplitude")
 xlabel('Frequency (Hz)')
@@ -79,14 +79,17 @@ xlabel('Frequency (Hz)')
 
 %Adjust Sent Signal (Add idle time)
 Srf_n;
-for pulse_number=1:1:K
-    
+total_idle_samples=Tidle_begin_n+Tidle_end_n;
+Padded_singlePulse_n=[zeros(1,Tidle_begin_n) SinglePulse_n zeros(1,Tidle_end_n)];
+
+Srf_n = repmat(Padded_singlePulse_n, 1, K); %Sent signal with idle times
 
 
+sampleNum_for_singlePulse=length(Padded_singlePulse_n);
+sampleNum_for_Srf=length(Srf_n);
 
-end
 
-
+% %plot zero padded signal: (freq)
 
 
 
@@ -99,10 +102,9 @@ object_parameters=zeros(N,2);
 for k=1:N
     object_parameters(k,1)=rand()*max_range;
 
-    object_parameters(k,1)=1800; %for trial 
+    object_parameters(k,1)=2000; %for trial 
     %object_parameters(k,2)=rand()*max_radial_velocity;
     object_parameters(k,2)=0;
-
 
 end
 
@@ -155,7 +157,9 @@ R_rf=awgn(R_rf,SNR_val);
 
 
 %conj, flip 
-Pulse_for_convn=conj(flip(SinglePulse_n)); %
+%Pulse_for_convn=conj(flip(SinglePulse_n)); %
+Pulse_for_convn=conj(flip(Padded_singlePulse_n));
+
 for pulse_number=1:K
 
     pulse_start_index=1+(pulse_number-1)*sampleNum_for_singlePulse;
@@ -196,7 +200,7 @@ range_axis=range_axis*c/(fs*2);
 
 figure;
 plot(range_axis,abs(y_filtered_signal(3,:)))
-title("Matched Filter output for 3rd Pulse Duration for Target Range", range_object_i)
+title(["Matched Filter output for 3rd Pulse Duration for Target at Range= "+num2str(range_object_i)+"m"])
 ylabel("Amplitude")
 xlabel("Range (m)")
 
@@ -240,8 +244,6 @@ sgtitle('Matched Filter Outputs for Random Chosen 5 Pulses')
 
 %Range Doppler Map:
 
-%range axis should be adjusted accordingly !!!!!
-
 RangeDoppler_Map=fftshift(fft(y_filtered_signal, [], 1),1); %FFT along columns for Doppler Freq.  (x axis: Range, y axis: velocity)
 frequency_axis=linspace(-fs/2, fs/2, sampleNum_for_singlePulse);
 velocity_axis = (-K/2:K/2-1)*lambda/(2*K*Tp);
@@ -252,8 +254,10 @@ figure();
 imagesc(range_axis, velocity_axis, 20*log10(abs(RangeDoppler_Map)));
 xlabel('Range (m)');
 ylabel('Velocity (m/s)');
-title("Range-Doppler Map (Target with Velocity=0m/s & Range=1000m)");
+title(["Range-Doppler Map (Target with Velocity=0m/s & Range="+num2str(range_object_i)+"m"]);
 colorbar;
+
+xlim([0 3000]) %limit according to observable range
 caxis([-20, 100]);
 
 cb = colorbar(); 
@@ -261,23 +265,9 @@ ylabel(cb,'Power (db)','Rotation',270)
 axis xy;
 
 
+%Store for investigation:
 %33th row=> velocity=0
-[~, max_index_map]=max(abs(RangeDoppler_Map(33,:)));
-
-
-
-
-
-
-
-
-
-%%  Range-Doppler FFT
-
-
-
-
-
+% [~, max_index_map]=max(abs(RangeDoppler_Map(33,:)));
 
 
 
