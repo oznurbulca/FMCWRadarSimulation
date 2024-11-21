@@ -15,13 +15,14 @@ mu = B / Tp; %frequency sweep rate
 f_c = 62e9;   %carrier frequency (Hz)
 c = physconst('LightSpeed'); %speed of light (m/s)
 fs = 4*B; %sampling frequency (Hz)
+PRI=24e-6;
 
 K=64; %number of pulses to transmit in one period 
 SNR_val=10; %dB;
 lambda=c/f_c; %wavelength 
 
 idle_time=Tp/5; %idle time at the beginning of the pulse (s)
-idle_time_end=Tp/4; %idle time at the end of the pulse (s)
+idle_time_end=0; %idle time at the end of the pulse (s)
 
 %indexwise idle durations:
 Tidle_begin_n=round(idle_time*fs); %idle time at the beginnig of the pulse
@@ -87,6 +88,7 @@ Srf_n = repmat(Padded_singlePulse_n, 1, K); %Sent signal with idle times
 
 sampleNum_for_singlePulse=length(Padded_singlePulse_n);
 sampleNum_for_Srf=length(Srf_n);
+time=0:1/fs:PRI*K-1/fs;
 
 
 % %plot zero padded signal: (freq)
@@ -102,9 +104,9 @@ object_parameters=zeros(N,2);
 for k=1:N
     object_parameters(k,1)=rand()*max_range;
 
-    object_parameters(k,1)=2000; %for trial 
+    object_parameters(k,1)=1500; %for trial 
     %object_parameters(k,2)=rand()*max_radial_velocity;
-    object_parameters(k,2)=0;
+    object_parameters(k,2)=10;
 
 end
 
@@ -114,6 +116,7 @@ R_rf=zeros(); %store the received signals from different objects in different ro
 %obtain received signal from objects
 %N=number of objects
 for object_num=1:N
+
 
     R_rf_i=0; %received signal from object i 
 
@@ -128,7 +131,7 @@ for object_num=1:N
     %doppler shift introduced to object i:
     %fd= 2*radial_vel_object_i*f_c/c;
 
-    fd= 2*radial_vel_object_i/c;
+    fd= 2*radial_vel_object_i/lambda;
     
 
     %Amplitude constant for object i:
@@ -140,7 +143,7 @@ for object_num=1:N
     end
 
     %R_rf=R_rf+A_i*exp(-1i*2*pi*fd)*p_t; %excluded fc
-    R_rf=R_rf+ A_i*exp(-1i*2*pi*fd)*[zeros(1,Ti_n) Srf_n(1:end-Ti_n)]; %delayed signal
+    R_rf=R_rf+ A_i*exp(1i*2*pi*fd*time).*[zeros(1,Ti_n) Srf_n(1:end-Ti_n)]; %delayed signal
 
 
 end
@@ -246,15 +249,16 @@ sgtitle('Matched Filter Outputs for Random Chosen 5 Pulses')
 
 RangeDoppler_Map=fftshift(fft(y_filtered_signal, [], 1),1); %FFT along columns for Doppler Freq.  (x axis: Range, y axis: velocity)
 frequency_axis=linspace(-fs/2, fs/2, sampleNum_for_singlePulse);
-velocity_axis = (-K/2:K/2-1)*lambda/(2*K*Tp);
+velocity_axis = (-K/2:K/2-1)*lambda/(2*K*PRI);
 
 
 figure();
+%surf
 
 imagesc(range_axis, velocity_axis, 20*log10(abs(RangeDoppler_Map)));
 xlabel('Range (m)');
 ylabel('Velocity (m/s)');
-title(["Range-Doppler Map (Target with Velocity=0m/s & Range="+num2str(range_object_i)+"m"]);
+title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m"]);
 colorbar;
 
 xlim([0 3000]) %limit according to observable range
@@ -272,8 +276,6 @@ axis xy;
 
 
 
-
-%% CFAR
 
 
 
