@@ -1,0 +1,337 @@
+%%%% ADDITION OF OTHER PARAMETERS OF HARDWARE:
+
+close all;
+clear all;
+
+rng('default');
+
+
+
+%Define parameters:
+B= 3461e6;  %bandwidth (Hz) 
+Tp = 49e-6; %single pulse period (seconds) RAMP END TIME 
+mu = B/Tp; %frequency sweep rate (Hz/sec)
+f_c = 60e9;   %carrier frequency (Hz)
+c = physconst('LightSpeed'); %speed of light (m/s)
+fs = 4*B/49; %sampling frequency (Hz)
+valid_sweep_bw=2989e6; %(Hz)
+
+
+fs_ADC=5.914e6; %ADC sampling frequency (Hz)
+
+%for single chirp, ADC parameters are:
+ADC_start_time=5.7e-6; 
+ADC_sampling_duration=42.66e-6; % Sampling duration (s)
+ADC_end_time=ADC_start_time+ADC_sampling_duration; %end of sampling time (s)
+
+ADC_sampling_time=ADC_start_time:1/fs_ADC:ADC_end_time; % Time axis for ADC samples
+
+
+
+max_beat_frequency=mu*(ADC_end_time); %calculated
+max_beat_frequency_hw=4.731e6; %(Hz) from hardware
+
+start_frequency=60e6;  
+end_frequency=start_frequency+B;
+
+bw = [end_frequency start_frequency]; %sweep bandwidth of chirp
+
+K=54; %number of chirps to transmit in one period 
+SNR_val=10; %dB;
+lambda=c/f_c; %wavelength 
+
+idle_time=7e-6; %idle time at the beginning of the pulse (s)
+idle_time_end=0; %idle time at the end of the pulse (s)
+
+
+PRI=idle_time+Tp; %pulse repetition imnterval (s)
+
+
+%indexwise idle durations:
+Tidle_begin_n=round(idle_time*fs); %idle time at the beginnig of the pulse
+Tidle_end_n=round(idle_time_end*fs); %idle time at the end of the pulse
+
+
+%for random object parameters:
+max_range_calc=c*B/(mu*2); %maximum available range for radar (m) (TO BE CHANGED)
+max_range=10; %(m) from hardware
+max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
+
+%define time axis:
+time_axis_chirp=0:1/fs:PRI-1/fs; %time axis for chirp
+
+time_axis=0:1/fs:K*PRI-1/fs; %whole time axis
+
+
+
+sent_waveform=phased.FMCWWaveform(SampleRate=fs,SweepBandwidth=bw,SweepTime=Tp,SweepDirection="Up",SweepInterval="Positive",OutputFormat="Sweeps",NumSweeps=K);
+
+
+% chirp_signal=chirp(time_axis,start_frequency,Tp-1/fs,end_frequency,"linear",0,"complex");
+% figure;
+% stft(chirp_signal);
+% title("Spectrum of Single Chirp")
+
+% pspectrum(chirp_signal,fs,"spectrogram", ...
+%     OverlapPercent=99,Leakage=0.85)
+
+
+Srf_n=transpose(sent_waveform()); %indexwise
+
+
+%% define chirp signal:
+
+time_axis_chirp=0:1/(fs/3000):Tp;
+chirp_signal=chirp(time_axis_chirp,start_frequency,Tp,end_frequency,"linear");
+figure;
+pspectrum(chirp_signal,fs,"spectrogram");
+
+
+
+%number of indexes  =Tp*K*fs
+sampleNum_for_singlePulse=round(Tp*fs); %index length (sample number of single pulse)
+sampleNum_for_Srf=round(Tp*fs*K); %index length (sample number of sent signal)
+SinglePulse_n=Srf_n(sampleNum_for_singlePulse+1:sampleNum_for_singlePulse*2);
+
+
+%observe sent signal:
+figure;
+title("Plot of Sent Signal (Srf(n))")
+subplot(2,1,1)
+plot(1:sampleNum_for_singlePulse,imag(SinglePulse_n))
+xlabel("index (n)")
+ylabel("Amplitude")
+
+subplot(2,1,2)
+plot(1:sampleNum_for_Srf,abs(Srf_n))
+xlabel("n")
+ylabel("Amplitude")
+
+figure;
+stft(Srf_n(1:sampleNum_for_singlePulse));
+title("Spectrum of Single Chirp")
+
+
+SinglePulse_n=Srf_n(1:sampleNum_for_singlePulse);
+figure;
+stft(SinglePulse_n,fs);
+title("Spectrum of Single Chirp")
+
+
+%%
+
+
+%Adjust Sent Signal (Add idle time)
+Srf_n;
+total_idle_samples=Tidle_begin_n+Tidle_end_n;
+Padded_singlePulse_n=[zeros(1,Tidle_begin_n) SinglePulse_n zeros(1,Tidle_end_n)];
+
+Srf_n = repmat(Padded_singlePulse_n, 1, K); %Sent signal with idle times
+
+
+sampleNum_for_singlePulse=length(Padded_singlePulse_n);
+sampleNum_for_Srf=length(Srf_n);
+
+
+
+time_axis_chirp=0:1/fs:PRI*K-1/fs;
+time_axis_chirp=linspace(0,PRI*K,length(Srf_n));
+
+% %plot zero padded signal: (freq)
+figure;
+stft(Padded_singlePulse_n)
+title("Spectrum of Single Chirp")
+
+
+%Object definition:
+
+N=1;% number of objects, keep 1 for ease
+
+%Define parameters objects: [Range (m), Radial Frequency (rad/s)] 
+object_parameters=zeros(N,2);
+for k=1:N
+    object_parameters(k,1)=rand()*max_range;
+
+    object_parameters(k,1)=5; %for trial 
+    %object_parameters(k,2)=rand()*max_radial_velocity;
+    object_parameters(k,2)=10;
+
+end
+
+
+R_rf=zeros(); %store the received signals from different objects in different rows
+
+%obtain received signal from objects
+%N=number of objects
+for object_num=1:N
+
+
+    R_rf_i=0; %received signal from object i 
+
+    range_object_i=object_parameters(object_num,1);
+    radial_vel_object_i=object_parameters(object_num,2);
+
+    
+    %delay due to object i:
+    T_i=2*range_object_i/c;
+    Ti_n=round(T_i*fs); %delay in terms of index n
+
+    %doppler shift introduced to object i:
+    %fd= 2*radial_vel_object_i*f_c/c;
+
+    fd= 2*radial_vel_object_i/lambda;
+    
+
+    %Amplitude constant for object i:
+    if range_object_i ~=0
+        A_i=1;
+    else
+        A_i=1;
+
+    end
+
+    %R_rf=R_rf+A_i*exp(-1i*2*pi*fd)*p_t; %excluded fc
+    R_rf=R_rf+ A_i*exp(1i*2*pi*fd*time_axis_chirp).*[zeros(1,Ti_n) Srf_n(1:end-Ti_n)]; %delayed signal
+
+
+end
+
+% add noise to received signals:
+R_rf=awgn(R_rf,SNR_val);
+
+
+
+
+
+%% Mixer design:
+%R_matrix=reshape(R_rf,K,sampleNum_for_singlePulse);
+
+
+IF_signal=(R_rf).*conj(Srf_n);
+
+IF_matrix_ADC=[];
+
+for pulse_number=1:K
+    start_index=1+(pulse_number-1)*sampleNum_for_singlePulse;
+    end_index=sampleNum_for_singlePulse*(pulse_number);
+    IF_matrix_ADC(pulse_number,:)=IF_signal(start_index:end_index);
+
+
+end
+
+
+
+% %observe spectrum of signals:
+% 
+% figure;
+% %stft(IF_matrix(1,:));
+% stft(R_rf(1:sampleNum_for_singlePulse));
+% title("Spectrum of Received Signal")
+% 
+% 
+% 
+% figure;
+% stft(IF_signal);
+% title("Spectrum of mixed signal")
+
+
+
+
+
+
+%% ADC SAMPLING
+
+
+% % ADC sampling on IF signal
+% IF_signal_ADC = interp1(time_axis_chirp, real(IF_signal), ADC_sampling_time, 'linear'); % Sampled real part
+% IF_signal_ADC_imag = interp1(time_axis, imag(IF_signal), ADC_sampling_time, 'linear'); % Sampled imaginary part
+% 
+% % Combine real and imaginary parts
+% IF_signal_ADC = IF_signal_ADC + 1i * IF_signal_ADC_imag;
+
+time_axis_chirp=0:1/fs:PRI; %time axis for chirp
+
+IF_matrix_ADC=[];
+IF_signal_ADC=0;
+
+
+for pulse_number=1:K
+    start_index=1+(pulse_number-1)*sampleNum_for_singlePulse;
+    end_index=sampleNum_for_singlePulse*(pulse_number);
+
+    IF_single_chirp=IF_signal(start_index:end_index);
+
+    % 
+    % %perform ADC:
+    % IF_signal_ADC_real = interp1(time_axis_chirp, real(IF_single_chirp), ADC_sampling_time, 'linear'); % Sampled real part
+    % IF_signal_ADC_imag = interp1(time_axis_chirp, imag(IF_single_chirp), ADC_sampling_time, 'linear'); % Sampled imaginary part
+    % 
+    % 
+    % % Combine real and imaginary parts
+    % IF_signal_ADC = IF_signal_ADC + 1i*IF_signal_ADC_imag;
+
+    IF_signal_ADC=interp1(time_axis_chirp,IF_single_chirp,ADC_sampling_time,"linear");
+
+
+    IF_matrix_ADC(pulse_number,:)=IF_signal_ADC;
+
+
+end
+
+%Range Doppler MAps from ADC output 
+ADC_sample_num=length(ADC_sampling_time);
+
+% define range axis according to ADC sampling:
+range_resolution = c*fs_ADC / (2*mu*ADC_sample_num);
+range_axis = (0:ADC_sample_num/2-1) * range_resolution;
+
+
+% %define range axis:
+% range_axis=0:1:ADC_sample_num/2-1;
+% range_axis=range_axis*c*fs/ADC_sample_num/(2*mu);
+% 
+
+
+range_spectrum=fftshift(fft(IF_matrix_ADC,[],2));
+
+range_spectrum=fliplr(range_spectrum(:,1:ADC_sample_num/2));
+
+RangeDoppler_Map=fftshift(fft(range_spectrum,[],1),1); %fft along slow time
+
+frequency_axis=linspace(-fs/2, fs/2, ADC_sample_num);
+
+velocity_axis = (-K/2:K/2-1)*lambda/(2*K*PRI);
+
+
+
+maximum_val=max(max(abs(RangeDoppler_Map)));
+
+
+[peak_row,peak_col]=find(abs(RangeDoppler_Map)==maximum_val);
+
+
+Range_estimation=peak_col*range_resolution
+
+range_object_i
+
+
+
+
+figure();
+%surf
+
+imagesc(range_axis, velocity_axis, 20*log10(abs(RangeDoppler_Map)));
+xlabel('Range (m)');
+ylabel('Velocity (m/s)');
+title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m"]);
+colorbar;
+
+%xlim([0 max_range]) %limit according to observable range
+caxis([-20, 100]);
+
+cb = colorbar(); 
+ylabel(cb,'Power (db)','Rotation',270)
+axis xy;
+
+
+
