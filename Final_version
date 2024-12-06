@@ -1,0 +1,234 @@
+%Define parameters:
+B= 3461e6;  %bandwidth (Hz) 
+Tp = 49e-6; %single pulse period (seconds) RAMP END TIME 
+mu = B/Tp; %frequency sweep rate (Hz/sec)
+f_c = 60e9;   %carrier frequency (Hz)
+c = physconst('LightSpeed'); %speed of light (m/s)
+f_max=f_c+B; %maximum freq of chirp signal (Hz)
+fs = 2*f_max+B/2; %sampling frequency for cont. time signal(Hz)
+lambda=c/f_c; %wavelength 
+
+
+%chirp signal parameters: (Assuming Baseband)
+start_frequency=0;  
+end_frequency=start_frequency+B;
+fs=2.5*end_frequency;
+idle_time=7e-6; %idle time at the beginning of the pulse (s)
+PRI=idle_time+Tp; %pulse repetition imnterval (s)
+time_axis_chirp=0:1/(fs):Tp-1/fs;  %time axis for single chirp
+
+%indexwise idle duration:
+Tidle_n=round(idle_time*fs); %idle time at the beginnig of the pulse
+
+
+K=54; %number of chirps to transmit in one period 
+SNR_val=10; %dB;
+
+%ADC parameters:
+%for single chirp, ADC parameters are:
+fs_ADC=5.914e6; %ADC sampling frequency (Hz)
+ADC_start_time=5.7e-6; 
+ADC_sampling_duration=42.66e-6; % Sampling duration (s)
+ADC_end_time=ADC_start_time+ADC_sampling_duration; %end of sampling time (s)
+
+ADC_sampling_time=ADC_start_time:1/fs_ADC:ADC_end_time-1/fs; % Time axis for ADC samples
+
+
+max_beat_frequency=mu*(ADC_end_time); %calculated
+max_beat_frequency_hw=4.731e6; %(Hz) from hardware
+
+%object paramters:
+max_range_calc=c*B/(mu*2); %maximum available range for radar (m) (TO BE CHANGED)
+max_range=10; %(m) from hardware
+max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
+
+
+
+
+%obtain chirp signal:
+chirp_signal=chirp(time_axis_chirp,start_frequency,time_axis_chirp(end),end_frequency,"linear");
+
+% %display the chirp without idle times:
+% figure;
+% pspectrum(chirp_signal,fs,"spectrogram");
+% title("Chirp Signal, Baseband")
+
+
+%% Add idle time:
+
+Single_Pulse_n=[zeros(1,Tidle_n) chirp_signal];
+
+time_axis_pulse=0:1/fs:PRI-1/fs;
+sampleNum_for_singlePulse=length(Single_Pulse_n);
+
+
+% %display chirp w/idle time:
+% figure;
+% pspectrum(Single_Pulse_n,fs,"spectrogram",OverlapPercent=99);
+% title("Chirp with Idle time, Baseband")
+
+%stft(Single_Pulse_n,fs) %gives + and - components? 
+
+%obtain transmit signal:
+Srf_n = repmat(Single_Pulse_n, 1, K); %Sent signal with idle times
+
+sampleNum_for_Srf=length(Srf_n);
+time_axis_Srf=0:1/fs:PRI*K-1/fs;
+
+% %Observe Transmit Signal:
+% figure;
+% pspectrum(Srf_n,fs,"spectrogram");
+% title("Transmit Signal (54 Chirps)")
+% 
+
+
+%% Object definition:
+
+N=1;% number of objects, keep 1 for ease
+
+%Define parameters objects: [Range (m), Velocity(m/s)] 
+object_parameters=zeros(N,2);
+for k=1:N
+    object_parameters(k,1)=rand()*max_range;
+
+    object_parameters(k,1)=5; %for trial 
+    %object_parameters(k,2)=rand()*max_radial_velocity;
+    object_parameters(k,2)=0;
+
+end
+
+
+%% Received Signal:
+
+R_rf=zeros(); %store the received signals from different objects in different rows
+
+%obtain received signal from objects
+%N=number of objects
+for object_num=1:N
+
+
+    R_rf_i=0; %received signal from object i 
+
+    range_object_i=object_parameters(object_num,1);
+    radial_vel_object_i=object_parameters(object_num,2);
+
+    
+    %delay due to object i:
+    T_i=2*range_object_i/c;
+    Ti_n=round(T_i*fs); %delay in terms of index n
+
+    %doppler shift introduced to object i:
+    %fd= 2*radial_vel_object_i*f_c/c;
+
+    fd= 2*radial_vel_object_i/lambda;
+    
+
+    %Amplitude constant for object i:
+    if range_object_i ~=0
+        A_i=1;
+    else
+        A_i=1;
+
+    end
+
+    %R_rf=R_rf+A_i*exp(-1i*2*pi*fd)*p_t; %excluded fc
+    R_rf=R_rf+ A_i*exp(1i*2*pi*fd*time_axis_Srf).*[zeros(1,Ti_n) Srf_n(1:end-Ti_n)]; %delayed signal
+
+
+end
+
+% add noise to received signals:
+R_rf=awgn(R_rf,SNR_val);
+
+
+
+%% Mixer design:
+
+%R_matrix=reshape(R_rf,K,sampleNum_for_singlePulse);
+
+
+IF_signal=(R_rf).*conj(Srf_n);
+
+IF_matrix=[];
+
+for pulse_number=1:K
+    start_index=1+(pulse_number-1)*sampleNum_for_singlePulse;
+    end_index=sampleNum_for_singlePulse*(pulse_number);
+    IF_matrix(pulse_number,:)=IF_signal(start_index:end_index);
+
+end
+
+
+% %observe mixed signal:
+% figure;
+% pspectrum(IF_signal,fs,"spectrogram");
+% title("Spectrum of Mixed Signal")
+
+%stft(IF_signal);
+
+%% ADC Sampling
+
+
+
+%time_axis_chirp=0:1/fs:PRI; %time axis for chirp
+
+IF_matrix_ADC=[];
+IF_signal_ADC=0;
+
+
+for pulse_number=1:K
+
+    start_index=1+(pulse_number-1)*sampleNum_for_singlePulse;
+    end_index=sampleNum_for_singlePulse*(pulse_number);
+
+    IF_single_chirp=IF_signal(start_index:end_index);
+    IF_signal_ADC=interp1(time_axis_pulse,IF_single_chirp,ADC_sampling_time,"linear");
+
+    IF_matrix_ADC(pulse_number,:)=IF_signal_ADC;
+
+
+end
+
+
+%% Display Range-Doppler Maps
+
+%Range Doppler MAps from ADC output 
+ADC_sample_num=length(ADC_sampling_time);
+
+% define range axis and velocity axis according to ADC sampling:
+range_resolution = c*fs_ADC / (2*mu*ADC_sample_num);
+range_axis = (0:ADC_sample_num/2-1) * range_resolution;
+velocity_axis = (-K/2:K/2-1)*lambda/(2*K*PRI);
+
+range_spectrum=fftshift(fft(IF_matrix_ADC,[],2));
+range_spectrum=fliplr(range_spectrum(:,1:ADC_sample_num/2));
+
+RangeDoppler_Map=fftshift(fft(range_spectrum,[],1),1); %fft along slow time
+
+%frequency_axis=linspace(-fs/2, fs/2, ADC_sample_num);
+
+
+
+%observe range doppler map:
+figure();
+
+imagesc(range_axis, velocity_axis, 20*log10(abs(RangeDoppler_Map)));
+xlabel('Range (m)');
+ylabel('Velocity (m/s)');
+title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m"]);
+colorbar;
+
+%xlim([0 max_range]) %limit according to observable range
+caxis([-20, 100]);
+
+cb = colorbar(); 
+ylabel(cb,'Power (db)','Rotation',270)
+axis xy;
+
+
+%% Estimation Result:
+
+maximum_val=max(max(abs(RangeDoppler_Map)));
+[peak_row,peak_col]=find(abs(RangeDoppler_Map)==maximum_val);
+Range_estimation=peak_col*range_resolution
+range_object_i
