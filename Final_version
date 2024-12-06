@@ -1,3 +1,4 @@
+
 %Define parameters:
 B= 3461e6;  %bandwidth (Hz) 
 Tp = 49e-6; %single pulse period (seconds) RAMP END TIME 
@@ -38,7 +39,7 @@ max_beat_frequency=mu*(ADC_end_time); %calculated
 max_beat_frequency_hw=4.731e6; %(Hz) from hardware
 
 %object paramters:
-max_range_calc=c*B/(mu*2); %maximum available range for radar (m) (TO BE CHANGED)
+max_range_calc=c*max_beat_frequency_hw/(mu*2); %maximum available range for radar (m) (TO BE CHANGED)
 max_range=10; %(m) from hardware
 max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
 
@@ -140,6 +141,14 @@ end
 % add noise to received signals:
 R_rf=awgn(R_rf,SNR_val);
 
+%Observe received signal:
+pspectrum(R_rf(1:sampleNum_for_singlePulse),fs,"spectrogram");
+title(["Received Signal for delay="+range_object_i+"m"])
+
+
+figure;
+pspectrum(Single_Pulse_n,fs,"spectrogram");
+title("Chirp with Idle time, Baseband")
 
 
 %% Mixer design:
@@ -232,3 +241,5 @@ maximum_val=max(max(abs(RangeDoppler_Map)));
 [peak_row,peak_col]=find(abs(RangeDoppler_Map)==maximum_val);
 Range_estimation=peak_col*range_resolution
 range_object_i
+
+
