@@ -1,4 +1,5 @@
-
+close all
+clear all
 %Define parameters:
 B= 3461e6;  %bandwidth (Hz) 
 Tp = 49e-6; %single pulse period (seconds) RAMP END TIME 
@@ -141,14 +142,6 @@ end
 % add noise to received signals:
 R_rf=awgn(R_rf,SNR_val);
 
-%Observe received signal:
-pspectrum(R_rf(1:sampleNum_for_singlePulse),fs,"spectrogram");
-title(["Received Signal for delay="+range_object_i+"m"])
-
-
-figure;
-pspectrum(Single_Pulse_n,fs,"spectrogram");
-title("Chirp with Idle time, Baseband")
 
 
 %% Mixer design:
@@ -201,7 +194,7 @@ end
 
 %% Display Range-Doppler Maps
 
-%Range Doppler MAps from ADC output 
+%Range Doppler Maps from ADC output 
 ADC_sample_num=length(ADC_sampling_time);
 
 % define range axis and velocity axis according to ADC sampling:
@@ -241,5 +234,29 @@ maximum_val=max(max(abs(RangeDoppler_Map)));
 [peak_row,peak_col]=find(abs(RangeDoppler_Map)==maximum_val);
 Range_estimation=peak_col*range_resolution
 range_object_i
+
+
+%% Observe Results with plots:
+
+%Observe received and sent signal:
+figure;
+subplot(3,1,2)
+pspectrum(R_rf(1:sampleNum_for_singlePulse),fs,"spectrogram");
+title(["Received Signal for delay="+range_object_i+"m"])
+
+subplot(3,1,1)
+pspectrum(Single_Pulse_n,fs,"spectrogram");
+title("Chirp with Idle time")
+
+subplot(3,1,3)
+pspectrum(IF_signal(1:sampleNum_for_singlePulse),fs,"spectrogram");
+title("Mixer Output")
+
+
+% FFT plots:
+figure;
+plot(real(abs(fft(IF_signal))))
+title("Absolute of FFT of Mixer Output")
+ylim([0 max_beat_frequency])
 
 
