@@ -1,5 +1,6 @@
 close all
 clear all
+
 %Define parameters:
 B= 3461e6;  %bandwidth (Hz) 
 Tp = 49e-6; %single pulse period (seconds) RAMP END TIME 
@@ -12,9 +13,9 @@ lambda=c/f_c; %wavelength
 
 
 %chirp signal parameters: (Assuming Baseband)
-start_frequency=0;  
+start_frequency=0;
 end_frequency=start_frequency+B;
-fs=2.5*end_frequency;
+fs=2*end_frequency+200;
 idle_time=7e-6; %idle time at the beginning of the pulse (s)
 PRI=idle_time+Tp; %pulse repetition imnterval (s)
 time_axis_chirp=0:1/(fs):Tp-1/fs;  %time axis for single chirp
@@ -50,7 +51,9 @@ max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
 %obtain chirp signal:
 chirp_signal=chirp(time_axis_chirp,start_frequency,time_axis_chirp(end),end_frequency,"linear");
 
-% %display the chirp without idle times:
+chirp_signal=exp(1i*pi*mu*time_axis_chirp.^2);
+
+% display the chirp without idle times:
 % figure;
 % pspectrum(chirp_signal,fs,"spectrogram");
 % title("Chirp Signal, Baseband")
@@ -64,10 +67,10 @@ time_axis_pulse=0:1/fs:PRI-1/fs;
 sampleNum_for_singlePulse=length(Single_Pulse_n);
 
 
-% %display chirp w/idle time:
-% figure;
-% pspectrum(Single_Pulse_n,fs,"spectrogram",OverlapPercent=99);
-% title("Chirp with Idle time, Baseband")
+%display chirp w/idle time:
+figure;
+pspectrum(Single_Pulse_n,fs,"spectrogram",OverlapPercent=99);
+title("Chirp with Idle time, Baseband")
 
 %stft(Single_Pulse_n,fs) %gives + and - components? 
 
@@ -81,7 +84,7 @@ time_axis_Srf=0:1/fs:PRI*K-1/fs;
 % figure;
 % pspectrum(Srf_n,fs,"spectrogram");
 % title("Transmit Signal (54 Chirps)")
-% 
+
 
 
 %% Object definition:
@@ -95,7 +98,7 @@ for k=1:N
 
     object_parameters(k,1)=5; %for trial 
     %object_parameters(k,2)=rand()*max_radial_velocity;
-    object_parameters(k,2)=0;
+    object_parameters(k,2)=10;
 
 end
 
@@ -118,11 +121,13 @@ for object_num=1:N
     %delay due to object i:
     T_i=2*range_object_i/c;
     Ti_n=round(T_i*fs); %delay in terms of index n
+    time_axis_targeti=[zeros(1,Ti_n) time_axis_Srf(Ti_n+1:end)];
 
     %doppler shift introduced to object i:
     %fd= 2*radial_vel_object_i*f_c/c;
 
     fd= 2*radial_vel_object_i/lambda;
+    frange=mu*T_i;
     
 
     %Amplitude constant for object i:
@@ -134,13 +139,25 @@ for object_num=1:N
     end
 
     %R_rf=R_rf+A_i*exp(-1i*2*pi*fd)*p_t; %excluded fc
-    R_rf=R_rf+ A_i*exp(1i*2*pi*fd*time_axis_Srf).*[zeros(1,Ti_n) Srf_n(1:end-Ti_n)]; %delayed signal
+    R_rf=R_rf+ A_i*exp(-1i*2*pi*fd*time_axis_Srf).*[zeros(1,Ti_n) Srf_n(1:end-Ti_n)]; %delayed signal
+    %R_rf=R_rf+ A_i*exp(-1i*2*pi*fd*time_axis_Srf).*exp(1i*pi*mu*time_axis_targeti.^2);
 
 
 end
 
 % add noise to received signals:
 R_rf=awgn(R_rf,SNR_val);
+
+%Observe Received Signal:
+figure;
+subplot(2,1,2)
+pspectrum(R_rf(1:sampleNum_for_singlePulse*4),fs,"spectrogram");
+title(["Received Signal (First 4 Chirps) For Delay="+T_i*10^6+"us"])
+
+
+subplot(2,1,1)
+pspectrum(Srf_n(1:sampleNum_for_singlePulse*4),fs,"spectrogram");
+title("Transmit Signal (First 4 Chirps)")
 
 
 
@@ -149,24 +166,44 @@ R_rf=awgn(R_rf,SNR_val);
 %R_matrix=reshape(R_rf,K,sampleNum_for_singlePulse);
 
 
-IF_signal=(R_rf).*conj(Srf_n);
+IF_signal=conj(R_rf).*(Srf_n);
+
+%filter mixed signal:
+[b,a]=butter(5,max_beat_frequency_hw/(fs/2));
 
 IF_matrix=[];
 
 for pulse_number=1:K
     start_index=1+(pulse_number-1)*sampleNum_for_singlePulse;
     end_index=sampleNum_for_singlePulse*(pulse_number);
+
     IF_matrix(pulse_number,:)=IF_signal(start_index:end_index);
+
+    %IF_matrix(pulse_number,:)=filter(b,a,IF_signal(start_index:end_index));
 
 end
 
 
 % %observe mixed signal:
-% figure;
-% pspectrum(IF_signal,fs,"spectrogram");
-% title("Spectrum of Mixed Signal")
+N = 2^nextpow2(length(IF_signal)); % FFT size
+% 
+figure;
+pspectrum(IF_signal(1:sampleNum_for_singlePulse*4),fs,"spectrogram");
+title("Spectrum of Mixed Signal (First 4 Chirps) ")
+% 
+% 
+figure;
+f = fs * (-N/2:N/2-1) / N;
+plot(f,abs(real(fftshift(fft(IF_signal,N)))))
+title("Absolute of FFT of Mixed Signal")
+xlabel("frequency (Hz)");
+%ylim([-10000 10000])
 
-%stft(IF_signal);
+
+f_beat=(frange-fd)*10^-9
+fd
+
+
 
 %% ADC Sampling
 
@@ -198,12 +235,33 @@ end
 ADC_sample_num=length(ADC_sampling_time);
 
 % define range axis and velocity axis according to ADC sampling:
-range_resolution = c*fs_ADC / (2*mu*ADC_sample_num);
+range_resolution = c*fs_ADC/(2*mu*ADC_sample_num);
+
+
 range_axis = (0:ADC_sample_num/2-1) * range_resolution;
+
+%c*max_beat_frequency_hw/(mu*2)
+
+freq_axis=linspace(0,max_beat_frequency,ADC_sample_num);
+
+%range_axis= (0:ADC_sample_num-1);
+
 velocity_axis = (-K/2:K/2-1)*lambda/(2*K*PRI);
 
 range_spectrum=fftshift(fft(IF_matrix_ADC,[],2));
-range_spectrum=fliplr(range_spectrum(:,1:ADC_sample_num/2));
+
+%observe range fft results:
+
+figure;
+plot(abs(real(range_spectrum(1,:))));
+title("Absolute of Range FFT Result")
+
+figure;
+plot(abs(real(range_spectrum(2,:))));
+
+
+
+range_spectrum=(range_spectrum(:,round(ADC_sample_num/2): end));
 
 RangeDoppler_Map=fftshift(fft(range_spectrum,[],1),1); %fft along slow time
 
@@ -217,10 +275,10 @@ figure();
 imagesc(range_axis, velocity_axis, 20*log10(abs(RangeDoppler_Map)));
 xlabel('Range (m)');
 ylabel('Velocity (m/s)');
-title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m"]);
+title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m)"]);
 colorbar;
 
-%xlim([0 max_range]) %limit according to observable range
+
 caxis([-20, 100]);
 
 cb = colorbar(); 
@@ -233,6 +291,7 @@ axis xy;
 maximum_val=max(max(abs(RangeDoppler_Map)));
 [peak_row,peak_col]=find(abs(RangeDoppler_Map)==maximum_val);
 Range_estimation=peak_col*range_resolution
+peak_col
 range_object_i
 
 
@@ -241,7 +300,7 @@ range_object_i
 %Observe received and sent signal:
 figure;
 subplot(3,1,2)
-pspectrum(R_rf(1:sampleNum_for_singlePulse),fs,"spectrogram");
+pspectrum(R_rf(sampleNum_for_singlePulse+1:2*sampleNum_for_singlePulse),fs,"spectrogram");
 title(["Received Signal for delay="+range_object_i+"m"])
 
 subplot(3,1,1)
@@ -251,12 +310,5 @@ title("Chirp with Idle time")
 subplot(3,1,3)
 pspectrum(IF_signal(1:sampleNum_for_singlePulse),fs,"spectrogram");
 title("Mixer Output")
-
-
-% FFT plots:
-figure;
-plot(real(abs(fft(IF_signal))))
-title("Absolute of FFT of Mixer Output")
-ylim([0 max_beat_frequency])
 
 
