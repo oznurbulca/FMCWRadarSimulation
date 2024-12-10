@@ -312,3 +312,89 @@ pspectrum(IF_signal(1:sampleNum_for_singlePulse),fs,"spectrogram");
 title("Mixer Output")
 
 
+%% CFAR Implementation
+
+
+
+num_training_cells_range = 8;
+num_doppler_training_cells = 4;
+
+%Select the number of Guard Cells in both dimensions around the Cell under 
+
+num_guard_cells_range = 4; 
+num_doppler_guard_cells = 2;
+
+offset = 1.3; %IDK how to choose this
+
+noise_level = zeros(1,1);
+
+
+% *%TODO* :
+%design a loop such that it slides the CUT across range doppler map by
+%giving margins at the edges for Training and Guard Cells.
+%For every iteration sum the signal level within all the training
+%cells. To sum convert the value from logarithmic to linear using db2pow
+%function. Average the summed values for all of the training
+%cells used. After averaging convert it back to logarithimic using pow2db.
+%Further add the offset to it to determine the threshold. Next, compare the
+%signal under CUT with this threshold. If the CUT level > threshold assign
+%it a value of 1, else equate it to 0.
+
+RDM = RangeDoppler_Map/max(max(RangeDoppler_Map));
+[Nr, Nd] = size(RDM);
+
+for i = num_training_cells_range+num_guard_cells_range+1 : Nr/2-(num_guard_cells_range+num_training_cells_range) % over range
+    for j = num_doppler_training_cells+num_doppler_guard_cells+1 : Nd-(num_doppler_guard_cells+num_doppler_training_cells) % over doppler
+        noise_level = zeros(1,1);
+        for p = i-(num_training_cells_range+num_guard_cells_range): i+ (num_training_cells_range+num_guard_cells_range)
+            for q = j-(num_doppler_training_cells+num_doppler_guard_cells): j+(num_doppler_training_cells+num_doppler_guard_cells)
+                if (abs(i-p)> num_guard_cells_range ||abs(j-q)>num_doppler_guard_cells)
+                    % convert value from log to linear using db2pow
+                    noise_level = noise_level+ db2pow(RDM(p,q));
+                end
+            end
+
+        end
+        %after averaging, convert it back to logarithmic using pow2db
+        threshold = pow2db(noise_level/(2*(num_doppler_training_cells+num_doppler_guard_cells+1)*2*(num_training_cells_range+num_guard_cells_range+1)-(num_guard_cells_range*num_doppler_guard_cells)-1));
+        % add offset to the noise determine the threshold.
+        threshold = threshold + offset;
+        
+        % compare the signal under CUT against this threshold
+        % If the CUT level > threshold assign 1, else equate to 0
+        CUT= RDM(i,j);
+        if (CUT<threshold)
+            RDM(i,j)=0;
+        else 
+            RDM(i,j)= 1; % max_T
+            disp(i);
+            disp(j);
+        end
+        
+
+        
+    end
+end
+% *%TODO* :
+% The process above will generate a thresholded block, which is smaller 
+%than the Range Doppler Map as the CUT cannot be located at the edges of
+%matrix. Hence,few cells will not be thresholded. To keep the map size same
+% set those values to 0. 
+
+RDM(RDM~=0 & RDM~=1) = 0;
+
+
+
+imagesc(range_axis, velocity_axis, 20*log10(abs(RDM)));
+xlabel('Range (m)');
+ylabel('Velocity (m/s)');
+title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m)"]);
+colorbar;
+
+
+caxis([-20, 100]);
+
+cb = colorbar(); 
+ylabel(cb,'Power (db)','Rotation',270)
+axis xy;
+
