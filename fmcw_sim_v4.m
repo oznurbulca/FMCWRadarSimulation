@@ -351,10 +351,10 @@ IF_matrix_AD=squeeze(IF_matrix_ADC(1,:,:));
 
 IF_signal=[squeeze(IF_matrix_AD(1,:)) squeeze(IF_matrix_AD(2,:)) squeeze(IF_matrix_AD(3,:)) squeeze(IF_matrix_AD(4,:))]; %single chirp
 
-figure;
-pspectrum(IF_signal,fs_ADC,"spectrogram");
-title("IF signal after ADC Sampling Simulation")
-caxis([-20 50])
+%figure;
+%pspectrum(IF_signal,fs_ADC,"spectrogram");
+%title("IF signal after ADC Sampling Simulation")
+%caxis([-20 50])
 
 
 %% Range Doppler Maps from ADC output 
