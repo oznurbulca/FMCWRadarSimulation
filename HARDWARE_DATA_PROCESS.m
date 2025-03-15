@@ -97,64 +97,6 @@ max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
 
 angle_axis_vals=[-40 -30 -20 -10 0 10 20 30 40];
 angle_num=length(angle_axis_vals);
-%%
-
-close all
-clear all
-
-%Define parameters:
-B= 3919e6;  %bandwidth (Hz) 
-Tp = 40e-6; %single pulse period (seconds) RAMP END TIME 
-mu = B/Tp; %frequency sweep rate (Hz/sec)
-f_c = 60e9;   %carrier frequency (Hz)
-c = physconst('LightSpeed'); %speed of light (m/s)
-f_max=f_c+B; %maximum freq of chirp signal (Hz)
-fs = 2*f_max+B/2; %sampling frequency for cont. time signal(Hz)
-lambda=c/f_c; %wavelength 
-
-
-%chirp signal parameters: (Assuming Baseband)
-start_frequency=0;
-end_frequency=start_frequency+B;
-fs=2*end_frequency+200;
-idle_time=10e-6; %idle time at the beginning of the pulse (s)
-PRI=idle_time+Tp; %pulse repetition imnterval (s)
-time_axis_chirp=0:1/(fs):Tp-1/fs;  %time axis for single chirp
-
-%indexwise idle duration:
-Tidle_n=round(idle_time*fs); %idle time at the beginnig of the pulse
-
-
-K=16; %number of chirps to transmit in one period 
-%SNR_val=10; %dB;
-
-%Antenna parameters
-num_tx = 3; % Number of transmitters 3
-num_rx = 4; % Number of receivers
-V_num = num_tx*num_rx; %5mm
-
-% V_num=12;
-tx_spacing = lambda; % Transmitter spacing
-rx_spacing = lambda / 2; % Receiver spacing
-
-% Generate array positions
-tx_positions = (0:num_tx-1) * tx_spacing;
-rx_positions = (0:num_rx-1) * rx_spacing;
-
-
-
-
-%Generate virtual array positions (1D vector)
-virtual_positions = zeros(V_num, 1);
-idx = 1;
-for tx_idx = 1:num_tx
-    for rx_idx = 1:num_rx
-        virtual_positions(idx) = (tx_idx-1) * tx_spacing + (rx_idx-1) * rx_spacing;
-        idx = idx + 1;
-    end
-end
-
-
 
 
 
@@ -189,8 +131,26 @@ adcDataStruct = load('cl_kucuk_200cm.mat');
 adcDataStruct = load('1_300_0.mat');
 adcDataStruct = load('cl_kucuk_200cm.mat');
 adcDataStruct = load('cl_buyuk_150cm.mat');
-adcDataStruct = load('1_200_0.mat');
+adcDataStruct = load('cl_kucuk_200cm.mat');
+adcDataStruct = load('cl_buyuk_200cm.mat');
 adcDataStruct = load('cl_buyuk_150cm.mat');
+adcDataStruct = load('1_300_0.mat');
+adcDataStruct = load('cl_buyuk_150cm.mat');
+adcDataStruct = load('cl_buyuk_150cm.mat');
+adcDataStruct = load('cl_buyuk_200cm.mat');
+adcDataStruct = load('cl_kucuk_150cm.mat');
+%adcDataStruct = load('cl_kucuk_200cm.mat');
+%adcDataStruct = load('cl_buyuk_150cm.mat');
+%adcDataStruct = load('bos.mat');
+%adcDataStruct = load('cl_buyuk_150cm.mat');
+% adcDataStruct = load('1_300_0.mat');
+% adcDataStruct = load('1_200_L30.mat'); 
+% adcDataStruct = load('1_300_0.mat');
+% adcDataStruct = load('1_100_0.mat');
+% adcDataStruct = load('1_200_0.mat');
+% adcDataStruct = load('cl_buyuk_150cm.mat');
+% adcDataStruct = load('1_100_0.mat');
+% adcDataStruct = load('1_200_L30.mat');
 fieldNames = fieldnames(adcDataStruct);
 adcData = adcDataStruct.(fieldNames{1}); 
 
@@ -230,7 +190,7 @@ IF_matrix_ADC = RDMapsRxTx;
 % IF_matrix_ADC=reshapedData;
 
 
-ADC_Bw=ADC_sampling_duration*mu; 
+%ADC_Bw=ADC_sampling_duration*mu; 
 
 range_resolution = c*fs_ADC/(2*mu*ADC_sample_num);
 % range_resolution=c/(2*ADC_Bw); %same as above
@@ -260,7 +220,7 @@ for l = 1:V_num
 
 
     window_function = hann(ADC_sample_num).';
-    range_spectrum = fftshift(fft(IF_matrix_AD .* window_function, [], 2), 2);
+    range_spectrum = fft(IF_matrix_AD .* window_function, [], 2);
 
     range_spectrum = fft(IF_matrix_AD.* window_function, [], 2);
     
@@ -270,13 +230,24 @@ for l = 1:V_num
 
 
     range_spectrum=range_spectrum(:,1:ADC_sample_num);
-    RangeDoppler_Map=fft(range_spectrum,[],1); %fft along slow time
+    RangeDoppler_Map=fftshift(fft(range_spectrum,[],1),1); %fft along slow time
     
     RDMaps(l, :, :) = RangeDoppler_Map;
+    
     
 
 end
 
+figure;
+surf(range_axis,velocity_axis,20*log(abs(RangeDoppler_Map)));
+surf(20*log(abs(RangeDoppler_Map)));
+title(['Range-Doppler Map ']);
+xlabel('Range (m)');
+ylabel('Velocity (deg)');
+zlabel('Amplitude (dB)');
+colorbar;
+view(0, 90); 
+abs_map=20*log(abs(RangeDoppler_Map));
 
 IF_matrix_AD=squeeze(IF_matrix_ADC(1,:,:));
 
@@ -292,12 +263,13 @@ window = hann(V_num);
 window = window(:); 
 
 RDMaps_windowed = RDMaps .* window;
+%RDMaps_windowed = RDMaps;
 
 
 % Angle Processing:
-angle_cells=10
+angle_cells=9
 angle_axis = linspace(-60, 60, angle_cells); %  angle bins
-zero_doppler_idx = K/2 + 1; % Zero velocity bin 
+zero_doppler_idx = K/2+1; % Zero velocity bin 
 range_slices = squeeze(RDMaps_windowed(:, zero_doppler_idx, :)); % [12 virtual elements x range bins]
 
 % Beamforming with steering vectors
