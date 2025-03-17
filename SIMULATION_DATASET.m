@@ -1,9 +1,9 @@
 close all
 clear all
 %Change Folder name to where you save
-Folder_Name="/Users/irmakfitoz/Dropbox (Personal)/Simulation_BinaryData/target";
-Folder_Name2="/Users/irmakfitoz/Dropbox (Personal)/Simulation_BinaryData/target"; %for saving the binary data
-
+Folder_Name="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/TARGET_NO_MASK";
+Folder_Name2="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/TARGET"; %for saving the binary data
+% change line 193: N=... to adjust the number of maps to be generated
 %%
 %Define parameters:
 B= 3919e6;  %bandwidth (Hz)
@@ -182,14 +182,15 @@ max_angle=40; %degrees, modify accordingly
 max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
 
 
-angle_axis_vals=[-45 -30 -15 0 15 30 45];
+angle_axis_vals=[60 -45 -30 -15 0 15 30 45 60];
+angle_axis_vals=[-50 -40 -20 -10 10 20 40 50]
 angle_num=length(angle_axis_vals);
 
 
 
 
 %% Number of objects:
-N = 1; % Modify as needed
+N = 300; % Modify as needed
 
 % Define object parameters: [Range (m), Velocity (m/s), Angle (radians)]
 object_parameters = zeros(N, 3);
@@ -200,6 +201,8 @@ for k = 1:N
 
     randomIndex = randi(angle_num, 1);
     object_parameters(k, 3) = deg2rad(angle_axis_vals(randomIndex)); % Random angle
+
+    %object_parameters(k, 3)=deg2rad(randi(2)*10+10);
 
     %object_parameters(k, 1) = 0.7;% Random range
 
@@ -487,7 +490,7 @@ for object_num = 1:N
     %% angle processing
 
     % Angle Processing (for 9 bins):
-    angle_cells=9
+    angle_cells=9;
     angle_axis = linspace(-60, 60, angle_cells); %  angle bins
     zero_doppler_idx = K/2 + 1; % Zero velocity bin
     range_slices = squeeze(RDMaps(:, zero_doppler_idx, :)); % [12 virtual elements x range bins]
