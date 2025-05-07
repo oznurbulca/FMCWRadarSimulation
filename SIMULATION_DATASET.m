@@ -1,9 +1,10 @@
 close all
 clear all
 %Change Folder name to where you save
-Folder_Name="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/TARGET_NO_MASK";
-Folder_Name2="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/TARGET"; %for saving the binary data
-% change line 193: N=... to adjust the number of maps to be generated
+Folder_Name="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/-5dBSNR/TARGET";
+Folder_Name2="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/-5dBSNR/TARGET_MASKED"; %for saving the binary data
+%Change line 195: N=... to adjust the number of maps to be generated
+%Change line 33: SNR_val=.. to adjust the SNR (Current: 10dB)
 %%
 %Define parameters:
 B= 3919e6;  %bandwidth (Hz)
@@ -29,7 +30,7 @@ Tidle_n=round(idle_time*fs); %idle time at the beginnig of the pulse
 
 
 K=16; %number of chirps to transmit in one period
-SNR_val=10; %dB;
+SNR_val=-5; %dB;
 
 %Antenna parameters
 num_tx = 3; % Number of transmitters 3
@@ -44,12 +45,12 @@ rx_spacing = lambda / 2; % Receiver spacing
 tx_positions = (0:num_tx-1) * tx_spacing;
 rx_positions = (0:num_rx-1) * rx_spacing;
 
-virtual_positions = zeros(num_tx, num_rx);
-for index_i = 1:num_tx
-    for index_j = 1:num_rx
-        virtual_positions(index_i, index_j) = tx_positions(index_i) + rx_positions(index_j);
-    end
-end
+% virtual_positions = zeros(num_tx, num_rx);
+% for index_i = 1:num_tx
+%     for index_j = 1:num_rx
+%         virtual_positions(index_i, index_j) = tx_positions(index_i) + rx_positions(index_j);
+%     end
+% end
 
 
 %Generate virtual array positions (1D vector)
@@ -184,13 +185,14 @@ max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
 
 angle_axis_vals=[60 -45 -30 -15 0 15 30 45 60];
 angle_axis_vals=[-50 -40 -20 -10 10 20 40 50]
+angle_axis_vals=[-52 -40 -32 -18 -7 7 18 32 52]
 angle_num=length(angle_axis_vals);
 
 
 
 
 %% Number of objects:
-N = 300; % Modify as needed
+N = 300; % Number of maps to be generated: Modify as needed
 
 % Define object parameters: [Range (m), Velocity (m/s), Angle (radians)]
 object_parameters = zeros(N, 3);
@@ -494,6 +496,10 @@ for object_num = 1:N
     angle_axis = linspace(-60, 60, angle_cells); %  angle bins
     zero_doppler_idx = K/2 + 1; % Zero velocity bin
     range_slices = squeeze(RDMaps(:, zero_doppler_idx, :)); % [12 virtual elements x range bins]
+    angle_edges = linspace(-60, 60, angle_cells+1);  % Defines the edges of angle bins
+
+    %Calculate the bin centers 
+    angle_centers = (angle_edges(1:end-1) + angle_edges(2:end))/2;
 
     % Beamforming with steering vectors
     steering_matrix = zeros(angle_cells, V_num);
@@ -527,16 +533,47 @@ for object_num = 1:N
     % save('range_angle_image.mat', "range_angle_image_dB");
 
 
-    % Find the maximum value and its index
-    [max_val, max_idx] = max(range_angle_map_DB(:));
+    % % Find the maximum value and its index ---- Previous implementation for gorund truth maps: highlights the maximum location
+    % [max_val,  max_idx] = max(range_angle_map_DB(:));
+    % 
+    % [row, col] = ind2sub(size(range_angle_map_DB), max_idx); % Convert linear index to row and column
+    % 
+    % %Create a binary matrix of the same size initialized with zeros
+    % Ground_truth_NN = zeros(size(range_angle_map));
+    % 
+    % %Set the position of the maximum value to 1
+    % Ground_truth_NN(max_idx) = 1;
 
-    [row, col] = ind2sub(size(range_angle_map_DB), max_idx); % Convert linear index to row and column
-
-    %Create a binary matrix of the same size initialized with zeros
+    % Initialize ground truth map
     Ground_truth_NN = zeros(size(range_angle_map));
 
-    %Set the position of the maximum value to 1
-    Ground_truth_NN(max_idx) = 1;
+    % Get object parameters
+    %angle_object_i
+    %range_object_i
+
+
+
+    % Find the closest range bin
+    [~, range_bin] = min(abs(range_axis - range_object_i));
+
+    % Find the closest angle bin
+    [~, angle_bin] = min(abs(-angle_centers - rad2deg(angle_object_i)));
+
+    % Set the corresponding bin to 1
+    Ground_truth_NN(angle_bin, range_bin) = 1;
+
+
+    % %Plot the ground truth map
+    % figure;
+    % imagesc(range_axis, -angle_centers, Ground_truth_NN);
+    % title(['Range-Angle Map (Target at ' num2str(rad2deg(object_parameters(1,3))) ' deg, ' num2str(object_parameters(1,1)) ' m)']);
+    % xlabel('Range (m)');
+    % ylabel('Angle (deg)');
+    % %colormap(gray);
+    % colorbar;
+    % view(0, 90);
+
+
 
     file_name=["RangeAngle_dB_Angle_Angle_"+rad2deg(angle_object_i)+"Range_"+range_object_i+".mat"];
 
@@ -552,3 +589,26 @@ end
 toc
 %
 disp('Range-angle maps saved successfully.');
+
+% %%
+%     figure;
+%     surf(range_axis, -angle_axis, range_angle_map_DB, 'EdgeColor', 'none');
+%     title(['Range-Angle Map (Target at ' num2str(rad2deg(object_parameters(1,3))) ' deg, ' num2str(object_parameters(1,1)) ' m)']);
+%     xlabel('Range (m)');
+%     ylabel('Angle (deg)');
+%     zlabel('Amplitude (dB)');
+%     colorbar;
+%     view(0, 90);
+%     caxis([-20, 120]);
+
+    % 
+    % % Plot Range-Angle Map
+    % figure;
+    % imagesc(range_axis, -angle_centers, 20*log10(range_angle_map));
+    % title(['Range-Angle Map (Target at ' num2str(rad2deg(object_parameters(1,3))) ' deg, ' num2str(object_parameters(1,1)) ' m)']);
+    % xlabel('Range (m)');
+    % ylabel('Angle (deg)');
+    % zlabel('Amplitude (dB)');
+    % colorbar;
+    % view(0, 90);
+    % caxis([-20, 120]);

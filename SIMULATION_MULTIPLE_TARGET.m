@@ -1,12 +1,13 @@
 close all
 clear all
 %Change Folder name to where you save
-Folder_Name="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/-5dBSNR/NO_TARGET";
-Folder_Name2="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/-5dBSNR/NO_TARGET_MASKED"; %for saving the binary data
-% change line 197,198 to adjust the number of maps to be generated
-%NOTE: Check the ending index of the previously generated maps and arrange these accordingly---> these indexes are used for naming the files, overlap will occur otherwise
-%Change line 34 to adjust snr value: SNR_db=..
+Folder_Name="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/MULTIPLE_TARGETS/10DB_SNR/TARGET";
+Folder_Name2="/Users/irmakfitoz/Documents/IndustrialDesignProject/SIMULATION_TRAINING_DATASET/MULTIPLE_TARGETS/10DB_SNR/TARGET_MASKED"; %for saving the binary data
+NUMBER_OF_MAPS=300; %number of maps to be generated
+%adjust line 178 for the number of objects per map if necessary (Current: Randomly generated betwen 2-10)
+%Adjust line 35 for the SNR value  (Current: 10dB)
 %%
+
 %Define parameters:
 B= 3919e6;  %bandwidth (Hz)
 Tp = 40e-6; %single pulse period (seconds) RAMP END TIME
@@ -31,7 +32,7 @@ Tidle_n=round(idle_time*fs); %idle time at the beginnig of the pulse
 
 
 K=16; %number of chirps to transmit in one period
-SNR_val=-5; %dB;
+SNR_val=10; %dB;
 
 %Antenna parameters
 num_tx = 3; % Number of transmitters 3
@@ -46,12 +47,12 @@ rx_spacing = lambda / 2; % Receiver spacing
 tx_positions = (0:num_tx-1) * tx_spacing;
 rx_positions = (0:num_rx-1) * rx_spacing;
 
-% virtual_positions = zeros(num_tx, num_rx);
-% for index_i = 1:num_tx
-%     for index_j = 1:num_rx
-%         virtual_positions(index_i, index_j) = tx_positions(index_i) + rx_positions(index_j);
-%     end
-% end
+virtual_positions = zeros(num_tx, num_rx);
+for index_i = 1:num_tx
+    for index_j = 1:num_rx
+        virtual_positions(index_i, index_j) = tx_positions(index_i) + rx_positions(index_j);
+    end
+end
 
 
 %Generate virtual array positions (1D vector)
@@ -63,6 +64,14 @@ for tx_idx = 1:num_tx
         idx = idx + 1;
     end
 end
+
+
+% virtual_positions(9)=virtual_positions(5);
+% virtual_positions(10)=virtual_positions(6);
+% virtual_positions(5)=virtual_positions(3);
+% virtual_positions(6)=virtual_positions(4);
+% virtual_positions(11)=virtual_positions(7);
+% virtual_positions(12)=virtual_positions(8);
 
 
 % angular_resolution=rad2deg(lambda/2*(V_num-1));
@@ -82,6 +91,9 @@ N_virtual=V_num;
 N_angle_bins = V_num;
 angle_axis = asind(2 *(-N_angle_bins/2:N_angle_bins/2-1) / 12);
 angle_axis=linspace(-60,60,12);
+
+angle_axis_vals=[-50 -40 -25 -10 10 25 35 50];
+angle_num=length(angle_axis_vals);
 
 
 
@@ -108,7 +120,8 @@ max_beat_frequency_hw=4.731e6; %(Hz) from hardware
 max_range_calc=c*max_beat_frequency_hw/(mu*2); %maximum available range for radar (m) (TO BE CHANGED)
 max_range=10; %(m) from hardware
 max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
-
+min_range=0.5; %meters, modify accordingly
+max_range=6; %meters, modify accordingly
 
 
 
@@ -158,127 +171,95 @@ end
 % title("Transmit Signal (16 Chirps)")
 
 
+for map_idx=1:NUMBER_OF_MAPS
 
-%% Object definition:
+    %% Object definition:
 
-% N=1;% number of objects, keep 1 for ease
-%
-% %Define parameters objects: [Range (m), Velocity(m/s)]
-% object_parameters=zeros(N,3);
-% for k=1:N
-%     object_parameters(k,1)=rand()*max_range;
-%
-%     object_parameters(k,1)=3; %for trial
-%     %object_parameters(k,2)=rand()*max_radial_velocity;
-%     object_parameters(k,2)=0; %velocity
-%     object_parameters(k,3)=deg2rad(40); %angle
-%
-%
-% end
+    N=randi([2 10]); % number of targets in the map
 
+    %Define parameters objects: [Range (m), Velocity(m/s)]
+    object_parameters=zeros(N,3);
+    for k=1:N
 
-% PARAMETERS FOR SIMULATION
-min_range=0.5; %meters, modify accordingly
-max_range=6; %meters, modify accordingly
-max_angle=40; %degrees, modify accordingly
-max_velocity=lambda/(4*Tp); %Objects' radial velocity (rad/s) (TO BE CHANGED)
-
-
-angle_axis_vals=[60 -45 -30 -15 0 15 30 45 60];
-angle_axis_vals=[-50 -40 -20 -10 10 20 40 50]
-angle_num=length(angle_axis_vals);
-
-
-
-
-%% Number of objects:
-
-
-starting_index=1;
-ending_index=300;
-
-%% Received Signal:
-
-R_rf=zeros(V_num,length(Srf_n)); %store the received signals from different objects in different rows
-
-%obtain received signal from objects
-%N=number of objects
-% Steering vector calculation based on angle of arrival
-% for object_num = 1:N
-%     range_object_i = object_parameters(object_num,1);
-%     radial_vel_object_i = object_parameters(object_num,2);
-%     angle_object_i = object_parameters(object_num,3); % Object angle
-%
-%     % Delay due to object i
-%     T_i = 2 * range_object_i / c;
-%     Ti_n = round(T_i * fs); % Delay in terms of index n
-%     time_axis_targeti = [zeros(1, Ti_n) time_axis_Srf(Ti_n+1:end)];
-%
-%     % Doppler shift
-%     fd = 2 * radial_vel_object_i / lambda;  % Doppler frequency
-%
-%     % Amplitude constant for object i
-%     A_i = 1; % Assuming a constant amplitude
-%
-%     for v = 1:V_num
-%         % Calculate the steering vector for angle of arrival (azimuth)
-%         steering_vector = exp(-1j * 2 * pi * (v - 1) * rx_spacing / lambda * sin(angle_object_i));
-%
-%         % Update the received signal with azimuth effect
-%         R_rf(v, :) = R_rf(v, :) + A_i * exp(-1j * 2 * pi * fd * time_axis_Srf) .* ...
-%                      [zeros(1, Ti_n) Srf_n(1:end - Ti_n)] .* steering_vector; % Applying steering vector
-%     end
-% end
-
-%% Received Signal:
-
-disp('Started...');
-% Process each object to generate and save range-angle maps:
-tic
-for sample_num = starting_index:ending_index
-
-    R_rf=zeros(V_num,length(Srf_n)); %store the received signals from different objects in different rows
-
-
-    range_object_i = 0;
-    radial_vel_object_i = 0;
-    angle_object_i = 0; % Object angle
-
-    % Delay due to object i
-    T_i = 2 * range_object_i / c;
-    Ti_n = round(T_i * fs); % Delay in terms of index n
-    time_axis_targeti = [zeros(1, Ti_n) time_axis_Srf(Ti_n+1:end)];
-
-    % Doppler shift
-    fd = 2 * radial_vel_object_i / lambda;  % Doppler frequency
-
-    % Amplitude constant for object i
-    A_i = 1; % Assuming a constant amplitude
-
-    for v = 1:V_num
-        % Calculate the steering vector for angle of arrival (azimuth)
-        steering_vector = exp(-1j * 2 * pi * (v - 1) * rx_spacing / lambda * sin(angle_object_i));
-
-        steering_vector = exp(-1j * 2 * pi * virtual_positions(v) * sin(angle_object_i) / lambda);
-
-
-        % Update the received signal with azimuth effect
-        R_rf(v, :) = R_rf(v, :) + A_i * exp(-1j * 2 * pi * fd * time_axis_Srf) .* ...
-            [zeros(1, Ti_n) Srf_n(1:end - Ti_n)] .* steering_vector; % Applying steering vector
-
-
-
+        object_parameters(k, 1) = rand()*(max_range-min_range)+min_range; % Random range
+        object_parameters(k, 2) = 0; % Assume zero velocity for simplicity
+        randomIndex = randi(angle_num, 1);
+        object_parameters(k, 3) = deg2rad(angle_axis_vals(randomIndex)); % Random angle
 
 
     end
 
-    %% ARRANGE ANTENNAS:
-    % R_rf2_start=R_rf(1:4,:);
-    % R_rf2_end4=R_rf(9:12,:);
+
+    % Calculate steering vector for each angle of arrival
+
+
+    %% Received Signal:
+
+    R_rf=zeros(V_num,length(Srf_n)); %store the received signals from different objects in different rows
+
+    %obtain received signal from objects
+    %N=number of objects
+    % Steering vector calculation based on angle of arrival
+    % for object_num = 1:N
+    %     range_object_i = object_parameters(object_num,1);
+    %     radial_vel_object_i = object_parameters(object_num,2);
+    %     angle_object_i = object_parameters(object_num,3); % Object angle
     %
-    % R_rf_mid=[R_rf2_start(3:4,:); R_rf(9:10,:)];
+    %     % Delay due to object i
+    %     T_i = 2 * range_object_i / c;
+    %     Ti_n = round(T_i * fs); % Delay in terms of index n
+    %     time_axis_targeti = [zeros(1, Ti_n) time_axis_Srf(Ti_n+1:end)];
     %
-    % R_rf=[R_rf2_start; R_rf_mid; R_rf2_end4];
+    %     % Doppler shift
+    %     fd = 2 * radial_vel_object_i / lambda;  % Doppler frequency
+    %
+    %     % Amplitude constant for object i
+    %     A_i = 1; % Assuming a constant amplitude
+    %
+    %     for v = 1:V_num
+    %         % Calculate the steering vector for angle of arrival (azimuth)
+    %         steering_vector = exp(-1j * 2 * pi * (v - 1) * rx_spacing / lambda * sin(angle_object_i));
+    %
+    %         % Update the received signal with azimuth effect
+    %         R_rf(v, :) = R_rf(v, :) + A_i * exp(-1j * 2 * pi * fd * time_axis_Srf) .* ...
+    %                      [zeros(1, Ti_n) Srf_n(1:end - Ti_n)] .* steering_vector; % Applying steering vector
+    %     end
+    % end
+
+    for object_num = 1:N
+        range_object_i = object_parameters(object_num,1);
+        radial_vel_object_i = object_parameters(object_num,2);
+        angle_object_i = object_parameters(object_num,3); % Object angle
+
+        % Delay due to object i
+        T_i = 2 * range_object_i / c;
+        Ti_n = round(T_i * fs); % Delay in terms of index n
+        time_axis_targeti = [zeros(1, Ti_n) time_axis_Srf(Ti_n+1:end)];
+
+        % Doppler shift
+        fd = 2 * radial_vel_object_i / lambda;  % Doppler frequency
+
+        % Amplitude constant for object i
+        A_i = 1; % Assuming a constant amplitude
+
+        for v = 1:V_num
+            % Calculate the steering vector for angle of arrival (azimuth)
+            steering_vector = exp(-1j * 2 * pi * (v - 1) * rx_spacing / lambda * sin(angle_object_i));
+
+            steering_vector = exp(-1j * 2 * pi * virtual_positions(v) * sin(angle_object_i) / lambda);
+
+
+            % Update the received signal with azimuth effect
+            R_rf(v, :) = R_rf(v, :) + A_i * exp(-1j * 2 * pi * fd * time_axis_Srf) .* ...
+                [zeros(1, Ti_n) Srf_n(1:end - Ti_n)] .* steering_vector; % Applying steering vector
+
+
+        end
+
+
+    end
+
+
 
     %% Add noise to received signal:
     % for v =1:V_num
@@ -471,6 +452,13 @@ for sample_num = starting_index:ending_index
 
     end
 
+    % figure();
+    % 
+    % imagesc(range_axis, velocity_axis, 20*log10(abs(RangeDoppler_Map)));
+    % xlabel('Range (m)');
+    % ylabel('Velocity (m/s)');
+    % title(["Range-Doppler Map (Target with Velocity="+num2str(radial_vel_object_i)+"m/s" "& Range="+num2str(range_object_i)+"m)"]);
+    % colorbar;
 
     %% angle processing
 
@@ -500,6 +488,96 @@ for sample_num = starting_index:ending_index
     % caxis([-20, 120]);
 
 
+    %Angle Processing (for 9 bins):
+    angle_cells=9;
+    angle_axis = linspace(-60, 60, angle_cells); %  angle bins
+    zero_doppler_idx = K/2 + 1; % Zero velocity bin
+    range_slices = squeeze(RDMaps(:, zero_doppler_idx, :)); % [12 virtual elements x range bins]
+    angle_cells = 9;  % Number of cells (regions)
+    angle_edges = linspace(-60, 60, angle_cells+1);  % Defines the edges of angle bins
+
+    %Calculate the bin centers (for display and steering vector calculation)
+    angle_centers = (angle_edges(1:end-1) + angle_edges(2:end))/2;
+
+    % Beamforming with steering vectors
+    steering_matrix = zeros(angle_cells, V_num);
+    for a_idx = 1:angle_cells
+        angle_rad = deg2rad(angle_axis(a_idx));
+        steering_matrix(a_idx, :) = exp(-1j * 2 * pi * virtual_positions' * sin(angle_rad) / lambda);
+    end
+    range_angle_map = abs(steering_matrix * range_slices); % [angles x range bins]
+
+
+    %% observe max vals:
+
+    max_ANGLE_values = max(20*log10(range_angle_map), [], 2); % Max across columns (angle axis)
+    max_RANGE_values = max(20*log10(range_angle_map), [], 1); % Max across rows (range axis)
+
+    % figure;
+    %
+    % subplot(2,1,1); % First subplot
+    % plot(-angle_axis, max_ANGLE_values, 'b', 'LineWidth', 2);
+    % xlabel('Range (m)');
+    % ylabel('Max Amplitude (dB)');
+    % title('Maximum Values Along Angle Axis');
+    % grid on;
+    %
+    % subplot(2,1,2); % Second subplot
+    % plot(range_axis, max_RANGE_values, 'r', 'LineWidth', 2);
+    % xlabel('Angle (deg)');
+    % ylabel('Max Amplitude (dB)');
+    % title('Maximum Values Along Range Axis');
+    % grid on;
+    %
+    % sgtitle(['1D Maximum Value Plots for Target at Angle=' num2str(rad2deg(object_parameters(3))) ...
+    %          ' deg & Range=' num2str(object_parameters(1)) ' m']);
+    %%
+    range_angle_map_DB=20*log10(range_angle_map);
+
+    % Initialize ground truth map
+    Ground_truth_NN = zeros(size(range_angle_map));
+
+    % Map each object's range and angle to the corresponding bins
+    for obj_idx = 1:N
+        % Get object parameters
+        range_obj = object_parameters(obj_idx, 1); % Range in meters
+        angle_obj = rad2deg(object_parameters(obj_idx, 3)); % Angle in degrees
+
+        % Find the closest range bin
+        [~, range_bin] = min(abs(range_axis - range_obj));
+
+        % Find the closest angle bin
+        [~, angle_bin] = min(abs(-angle_centers - angle_obj));
+
+        % Set the corresponding bin to 1
+        Ground_truth_NN(angle_bin, range_bin) = 1;
+    end
+
+
+
+    % % Plot Range-Angle Map
+    % figure;
+    % imagesc(range_axis, -angle_centers, 20*log10(range_angle_map));
+    % xlabel('Range (m)');
+    % ylabel('Angle (deg)');
+    % zlabel('Amplitude (dB)');
+    % colorbar;
+    % view(0, 90);
+    % caxis([-20, 120]);
+    % 
+    % range_angle_map_DB=20*log10(range_angle_map);
+    % [max_val,  max_idx] = max(range_angle_map_DB(:));
+    % 
+    % [row, col] = ind2sub(size(range_angle_map_DB), max_idx); % Convert linear index to row and column
+    % 
+    % 
+    % figure;
+    % imagesc(range_axis, -angle_centers, Ground_truth_NN);
+    % xlabel('Range (m)');
+    % ylabel('Angle (deg)');
+    % colorbar;
+    % view(0, 90);
+
 
 
     %% Save the image to matlab file:
@@ -512,38 +590,14 @@ for sample_num = starting_index:ending_index
     % save('range_angle_image.mat', "range_angle_image_dB");
 
 
-    % Find the maximum value and its index
-    [max_val, max_idx] = max(range_angle_map_DB(:));
-
-    [row, col] = ind2sub(size(range_angle_map_DB), max_idx); % Convert linear index to row and column
-
-    %Create a binary matrix of the same size initialized with zeros
-    Ground_truth_NN = zeros(size(range_angle_map));
-
-    %Set the position of the maximum value to 1
-    %Ground_truth_NN(max_idx) = 1;
-    % 
-    % figure;
-    % surf(range_axis, -angle_axis, Ground_truth_NN);
-    % title(['Range-Angle Map ']);
-    % xlabel('Range (m)');
-    % ylabel('Angle (deg)');
-    % zlabel('Amplitude (dB)');
-    % colorbar;
-    % view(0, 90);
-
-
-    file_name=["RangeAngle_dB_Angle_no_target_"+sample_num+".mat"];
-
+    %file_name=["RangeAngle_dB_Angle_Angle_"+rad2deg(angle_object_i)+"Range_"+range_object_i+".mat"];
+    file_name=['RangeAngle_dB' num2str(N) '_Objects'];
     full_file_name=fullfile(Folder_Name,file_name);
-
     save(full_file_name,"range_angle_map_DB")
 
 
     % save binary data:
+    file_name=['GroundTruth' num2str(N) '_Objects'];
     full_file_name2=fullfile(Folder_Name2,file_name);
     save(full_file_name2,"Ground_truth_NN")
 end
-toc
-%
-disp('Range-angle maps saved successfully.');
