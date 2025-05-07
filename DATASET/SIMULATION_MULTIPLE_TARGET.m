@@ -589,15 +589,17 @@ for map_idx=1:NUMBER_OF_MAPS
     %
     % save('range_angle_image.mat', "range_angle_image_dB");
 
+    timestamp = datestr(now, 'yyyymmdd_HHMMSSFFF');
+
 
     %file_name=["RangeAngle_dB_Angle_Angle_"+rad2deg(angle_object_i)+"Range_"+range_object_i+".mat"];
-    file_name=['RangeAngle_dB' num2str(N) '_Objects'];
+    file_name=['RangeAngle_dB_' num2str(N) '_Objects' timestamp];
     full_file_name=fullfile(Folder_Name,file_name);
     save(full_file_name,"range_angle_map_DB")
 
 
     % save binary data:
-    file_name=['GroundTruth' num2str(N) '_Objects'];
+    file_name=['GroundTruth_' num2str(N) '_Objects' timestamp];
     full_file_name2=fullfile(Folder_Name2,file_name);
     save(full_file_name2,"Ground_truth_NN")
 end
