@@ -50,7 +50,7 @@ fm = @(t) ( (-Tp/2 <= t) & (t <= Tp/2) ) .* (f_c+ (mu*t));
 [Srf_t, freq_values] = S_Tx(K, time_axis, Tp, f_c, p, fm);
 
 
-R_rf=zeros(); %store the received signals from different objects in different rows
+R_rf=zeros(); %store the received signals from different objects in different rows %R_rf = zeros(N, length(time_axis));
 
 %obtain received signal from objects
 for object_num=1:N
@@ -79,7 +79,7 @@ for object_num=1:N
     end
 
     %before with fc: R_rf=R_rf+A_i*exp(1i*2*pi*f_c*T_i)*exp(-1i*2*pi*fd)*p_t; 
-    R_rf(object_num)=R_rf_i+A_i*exp(-1i*2*pi*fd)*p_t; %excluded fc
+    R_rf(object_num)=R_rf_i+A_i*exp(-1i*2*pi*fd)*p_t; %excluded fc %R_rf(object_num, :)
 
 
 end
